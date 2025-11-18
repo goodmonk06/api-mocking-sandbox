@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MockProject {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  specs              MockSpec[]
+  endpointOverrides  MockEndpointOverride[]
+  requestLogs        RequestLog[]
+
+  @@map("mock_projects")
+}
+
+model MockSpec {
+  id         String   @id @default(cuid())
+  projectId  String
+  type       SpecType
+  sourceText String   @db.Text
+  createdAt  DateTime @default(now())
+
+  project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("mock_specs")
+}
+
+enum SpecType {
+  OPENAPI
+  JSON_SCHEMA
+}
+
+model MockEndpointOverride {
+  id                 String   @id @default(cuid())
+  projectId          String
+  method             String   // GET, POST, PUT, DELETE, PATCH, etc.
+  path               String   // e.g., /users/{id}
+  customResponseJson String   @db.Text
+  enabled            Boolean  @default(true)
+  statusCode         Int      @default(200)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, method, path])
+  @@map("mock_endpoint_overrides")
+}
+
+model RequestLog {
+  id        String   @id @default(cuid())
+  projectId String
+  method    String
+  path      String
+  statusCode Int
+  timestamp DateTime @default(now())
+  bodyJson  String?  @db.Text
+  headers   String?  @db.Text
+  responseJson String? @db.Text
+
+  project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, timestamp])
+  @@map("request_logs")
+}
