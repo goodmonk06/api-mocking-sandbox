@@ -1,33 +1,135 @@
 # API Mocking Sandbox
 
-A powerful API mocking server that generates realistic fake data from OpenAPI specifications. Perfect for frontend development, testing, and prototyping without a backend.
+A production-ready API mocking server that generates realistic fake data from OpenAPI specifications. Build and test your frontend applications without waiting for backend APIs.
 
-## Features
+## Overview
 
-- **OpenAPI Support**: Import OpenAPI 3.0 specs (YAML or JSON) and automatically generate mock endpoints
-- **Smart Response Generation**: Uses JSON Schema Faker to generate realistic fake data based on your schemas
-- **Custom Overrides**: Override any endpoint with custom responses and status codes
-- **Request Logging**: Track all requests made to your mock server
-- **Web UI**: Beautiful Next.js console to manage projects, routes, and view logs
-- **Path Parameters**: Supports dynamic path parameters (e.g., `/users/{id}`)
-- **Multiple Projects**: Organize different API specs into separate projects
+The API Mocking Sandbox is a complete solution for mocking REST APIs during development, testing, and prototyping. It parses OpenAPI 3.0 specifications and automatically generates realistic mock responses using JSON Schema Faker. You can override specific endpoints with custom responses, track all requests, and manage multiple projects through a clean web interface.
+
+**Key Benefits:**
+- **Zero Backend Dependency**: Develop frontend features independently
+- **Realistic Data**: Auto-generated fake data based on your schemas
+- **Full Control**: Override any endpoint with custom responses
+- **Request Tracking**: Monitor and debug all API calls
+- **Multiple Projects**: Organize different API specs separately
 
 ## Tech Stack
 
-- **Backend**: Fastify + TypeScript + Prisma + PostgreSQL
-- **Frontend**: Next.js 14 (App Router) + TypeScript
-- **OpenAPI**: `openapi-types` for parsing
-- **Fake Data**: `json-schema-faker` for generating realistic mock data
-- **Database**: PostgreSQL with Prisma ORM
+### Backend
+- **Runtime**: Node.js 20+ with TypeScript
+- **Framework**: Fastify (high-performance web framework)
+- **Database**: PostgreSQL 15 with Prisma ORM
+- **Validation**: Zod for runtime type-safe validation
+- **OpenAPI**: `openapi-types` for spec parsing, `js-yaml` for YAML support
+- **Mock Data**: `json-schema-faker` for generating realistic fake data
+- **Testing**: Vitest
 
-## Quick Start
+### Frontend
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Custom CSS (no framework dependencies)
 
-### Prerequisites
+### Infrastructure
+- **Containerization**: Docker & Docker Compose
+- **Database**: PostgreSQL in Docker
+- **Monorepo**: npm workspaces
 
-- Node.js 18+ and npm
-- Docker and Docker Compose (for PostgreSQL)
+## Domain Model
 
-### Installation
+### Core Entities
+
+```
+MockProject
+├── id: string (cuid)
+├── name: string
+├── description: string?
+├── createdAt: DateTime
+├── updatedAt: DateTime
+└── Relations:
+    ├── specs: MockSpec[]
+    ├── endpointOverrides: MockEndpointOverride[]
+    └── requestLogs: RequestLog[]
+
+MockSpec
+├── id: string (cuid)
+├── projectId: string → MockProject
+├── type: enum(OPENAPI, JSON_SCHEMA)
+├── sourceText: text (YAML/JSON content)
+└── createdAt: DateTime
+
+MockEndpointOverride
+├── id: string (cuid)
+├── projectId: string → MockProject
+├── method: string (GET, POST, PUT, DELETE, PATCH)
+├── path: string (e.g., /users/{id})
+├── customResponseJson: text
+├── enabled: boolean
+├── statusCode: integer (100-599)
+├── createdAt: DateTime
+└── updatedAt: DateTime
+
+RequestLog
+├── id: string (cuid)
+├── projectId: string → MockProject
+├── method: string
+├── path: string
+├── statusCode: integer
+├── timestamp: DateTime
+├── bodyJson: text?
+├── headers: text?
+└── responseJson: text?
+```
+
+### Key Relationships
+
+- **One Project** has many **Specs** (typically one active spec)
+- **One Project** has many **Endpoint Overrides** (custom responses)
+- **One Project** has many **Request Logs** (audit trail)
+
+## Getting Started
+
+### Requirements
+
+- **Node.js** 20 or higher
+- **npm** 9 or higher
+- **Docker** & **Docker Compose** (for PostgreSQL)
+- **Git**
+
+### Setup Steps
+
+#### Option 1: Quick Start with Docker (Recommended)
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd api-mocking-sandbox
+   ```
+
+2. **Set up environment variables**
+   ```bash
+   cp .env.example backend/.env
+   cp .env.example frontend/.env.local
+   ```
+
+3. **Start everything with Docker Compose**
+   ```bash
+   npm run docker:build
+   npm run docker:up
+   ```
+
+4. **Initialize the database** (first time only)
+   ```bash
+   # Wait for containers to be healthy, then:
+   docker exec -it api-mocking-backend npx prisma migrate deploy
+   docker exec -it api-mocking-backend npm run db:seed
+   ```
+
+5. **Access the application**
+   - Frontend UI: http://localhost:3000
+   - Backend API: http://localhost:3001
+   - Health check: http://localhost:3001/health
+
+#### Option 2: Local Development
 
 1. **Clone the repository**
    ```bash
@@ -40,187 +142,251 @@ A powerful API mocking server that generates realistic fake data from OpenAPI sp
    npm install
    ```
 
-3. **Start PostgreSQL**
+3. **Start PostgreSQL with Docker**
    ```bash
-   docker-compose up -d
+   docker-compose up -d postgres
    ```
 
-4. **Set up the database**
+4. **Set up environment variables**
    ```bash
-   cd backend
-   npx prisma migrate dev
-   npx prisma generate
-   cd ..
+   cp .env.example backend/.env
+   cp .env.example frontend/.env.local
    ```
 
-5. **Start the development servers**
+5. **Set up the database**
+   ```bash
+   npm run db:setup     # Run migrations and generate Prisma client
+   npm run db:seed      # Load demo data
+   ```
+
+6. **Start development servers**
    ```bash
    npm run dev
    ```
 
-   This will start:
-   - Backend API: `http://localhost:3001`
-   - Frontend UI: `http://localhost:3000`
+   This starts both backend (port 3001) and frontend (port 3000) in watch mode.
 
-## Usage
+### Verification
 
-### 1. Create a Project
+After setup, verify the installation:
 
-1. Open `http://localhost:3000` in your browser
-2. Click "New Project"
-3. Enter a name and description
-4. Click "Create Project"
+```bash
+# Check backend health
+curl http://localhost:3001/health
 
-### 2. Upload an OpenAPI Spec
+# Expected response:
+# {"status":"ok","timestamp":"2025-11-18T..."}
 
-1. Click "View Routes" on your project
-2. Click "Upload Spec"
-3. Paste your OpenAPI YAML or JSON
-4. Click "Upload"
-
-Example OpenAPI spec:
-
-```yaml
-openapi: 3.0.0
-info:
-  title: Sample API
-  version: 1.0.0
-paths:
-  /users:
-    get:
-      summary: Get all users
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    name:
-                      type: string
-                    email:
-                      type: string
-                      format: email
-  /users/{id}:
-    get:
-      summary: Get user by ID
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  name:
-                    type: string
-                  email:
-                    type: string
-                    format: email
-                  createdAt:
-                    type: string
-                    format: date-time
+# List projects (should show demo project)
+curl http://localhost:3001/api/projects
 ```
 
-### 3. Use the Mock Server in Your Frontend
+## Example Flow: Complete Vertical Slice
 
-Once you've uploaded a spec, your mock server is ready! Use the base URL:
+Here's a complete end-to-end workflow demonstrating the core functionality:
 
-```
-http://localhost:3001/mock/{projectId}
-```
+### Step 1: Access the Demo Project
 
-You can find your project ID in the URL when viewing your project routes.
+After running `npm run db:seed`, you'll have a demo e-commerce project. The seed script outputs the project ID.
 
-**Example: React App**
-
-```javascript
-// api.js
-const MOCK_API_URL = 'http://localhost:3001/mock/clq1234567890';
-
-export async function getUsers() {
-  const response = await fetch(`${MOCK_API_URL}/users`);
-  return response.json();
-}
-
-export async function getUser(id) {
-  const response = await fetch(`${MOCK_API_URL}/users/${id}`);
-  return response.json();
-}
-
-export async function createUser(userData) {
-  const response = await fetch(`${MOCK_API_URL}/users`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(userData),
-  });
-  return response.json();
-}
+```bash
+# Get the demo project ID from seed output, or:
+curl http://localhost:3001/api/projects | jq '.[0].id'
 ```
 
-**Example: Vue App**
+### Step 2: Explore Available Routes
 
-```javascript
-// api.js
-import axios from 'axios';
+Visit the frontend at http://localhost:3000:
+1. Click on "E-commerce API Demo" project
+2. View the "Routes" tab to see all endpoints derived from the OpenAPI spec
 
-const api = axios.create({
-  baseURL: 'http://localhost:3001/mock/clq1234567890'
-});
-
-export const getUsers = () => api.get('/users');
-export const getUser = (id) => api.get(`/users/${id}`);
-export const createUser = (data) => api.post('/users', data);
+Or via API:
+```bash
+PROJECT_ID="<your-project-id>"
+curl http://localhost:3001/api/projects/$PROJECT_ID/routes
 ```
 
-### 4. Add Custom Overrides (Optional)
+### Step 3: Make Mock API Requests
 
-Want to test error cases or return specific data? Add an override:
+The mock server is available at `/mock/:projectId/*`. Try these endpoints:
 
-1. Go to the Routes page
+```bash
+# Get all products (auto-generated fake data)
+curl http://localhost:3001/mock/$PROJECT_ID/products
+
+# Get a specific product (path parameter matching)
+curl http://localhost:3001/mock/$PROJECT_ID/products/prod_123
+
+# Get user profile (custom override with realistic data)
+curl http://localhost:3001/mock/$PROJECT_ID/users/me
+
+# Create an order (custom override returns confirmation)
+curl -X POST http://localhost:3001/mock/$PROJECT_ID/orders \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"user_123","items":[{"productId":"prod_123","quantity":2}]}'
+
+# Special deal endpoint (custom override)
+curl http://localhost:3001/mock/$PROJECT_ID/products/special-deal
+```
+
+### Step 4: View Request Logs
+
+All requests are logged. View them in the UI:
+1. Go to the "Request Logs" tab
+2. Click "Details" on any log entry to see full request/response
+
+Or via API:
+```bash
+curl http://localhost:3001/api/projects/$PROJECT_ID/logs
+```
+
+### Step 5: Add a Custom Override
+
+Override an endpoint to return specific test data:
+
+**Via UI:**
+1. Go to Routes tab
 2. Click "Add Override" next to any route
-3. Set custom response JSON and status code
-4. Click "Create Override"
+3. Enter custom JSON response
+4. Submit
 
-Example override for testing error:
-```json
-{
-  "error": "User not found",
-  "code": "USER_NOT_FOUND"
+**Via API:**
+```bash
+curl -X POST http://localhost:3001/api/projects/$PROJECT_ID/overrides \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "GET",
+    "path": "/products/test-404",
+    "statusCode": 404,
+    "customResponseJson": "{\"error\":\"Product not found\",\"code\":\"NOT_FOUND\"}"
+  }'
+
+# Test the override
+curl http://localhost:3001/mock/$PROJECT_ID/products/test-404
+# Returns: {"error":"Product not found","code":"NOT_FOUND"}
+```
+
+### Step 6: Use in Your Frontend App
+
+Point your frontend to the mock server:
+
+**React Example:**
+```javascript
+// api/config.js
+export const API_BASE_URL = process.env.REACT_APP_MOCK_API ||
+  'http://localhost:3001/mock/<project-id>';
+
+// api/products.js
+import { API_BASE_URL } from './config';
+
+export async function getProducts() {
+  const response = await fetch(`${API_BASE_URL}/products`);
+  return response.json();
+}
+
+export async function getProduct(id) {
+  const response = await fetch(`${API_BASE_URL}/products/${id}`);
+  return response.json();
 }
 ```
 
-Status code: `404`
+**Vue/Nuxt Example:**
+```javascript
+// plugins/api.js
+export default defineNuxtPlugin(() => {
+  const baseURL = 'http://localhost:3001/mock/<project-id>';
 
-### 5. View Request Logs
+  return {
+    provide: {
+      api: {
+        getProducts: () => $fetch(`${baseURL}/products`),
+        getProduct: (id) => $fetch(`${baseURL}/products/${id}`),
+      }
+    }
+  };
+});
+```
 
-1. Navigate to the "Request Logs" tab
-2. See all requests made to your mock server
-3. Click "Details" to view request/response bodies and headers
-4. Logs auto-refresh every 5 seconds
+## Available Scripts
 
-## API Endpoints
+### Root Level
+
+```bash
+npm run dev              # Start both backend & frontend in dev mode
+npm run dev:backend      # Start only backend in dev mode
+npm run dev:frontend     # Start only frontend in dev mode
+npm run build            # Build both backend & frontend for production
+npm run start            # Start both backend & frontend in production mode
+npm test                 # Run backend tests
+npm run lint             # Lint both backend & frontend
+
+# Database
+npm run db:setup         # Initialize database (migrate + generate client)
+npm run db:migrate       # Run database migrations
+npm run db:push          # Push schema changes (dev only)
+npm run db:seed          # Seed database with demo data
+
+# Docker
+npm run docker:build     # Build Docker images
+npm run docker:up        # Start all containers
+npm run docker:down      # Stop all containers
+npm run docker:logs      # View container logs
+```
+
+### Backend
+
+```bash
+cd backend
+npm run dev              # Start with hot reload
+npm run build            # Compile TypeScript
+npm run start            # Start compiled server
+npm test                 # Run tests
+npm run test:watch       # Run tests in watch mode
+npm run lint             # Type-check with TypeScript
+npm run db:generate      # Generate Prisma client
+npm run db:migrate       # Run migrations
+npm run db:seed          # Seed database
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm run dev              # Start Next.js dev server
+npm run build            # Build for production
+npm run start            # Start production server
+npm run lint             # Run Next.js linter
+```
+
+## Testing
+
+Run the test suite:
+
+```bash
+npm test
+```
+
+The backend includes tests for:
+- **OpenAPI Parser**: Spec parsing, route extraction, $ref resolution
+- **Schema Faker**: Mock data generation from JSON schemas
+- **API Endpoints**: Full request/response validation (coming soon)
+
+Example test output:
+```
+✓ src/engine/__tests__/openapi-parser.test.ts (8 tests)
+✓ src/engine/__tests__/schema-faker.test.ts (6 tests)
+
+Test Files  2 passed (2)
+     Tests  14 passed (14)
+```
+
+## API Documentation
 
 ### Projects
 
 - `GET /api/projects` - List all projects
-- `GET /api/projects/:id` - Get project details
 - `POST /api/projects` - Create a new project
+- `GET /api/projects/:id` - Get project details
 - `PUT /api/projects/:id` - Update a project
 - `DELETE /api/projects/:id` - Delete a project
 
@@ -243,173 +409,62 @@ Status code: `404`
 
 ### Logs
 
-- `GET /api/projects/:projectId/logs` - Get request logs
+- `GET /api/projects/:projectId/logs?limit=100&offset=0` - Get request logs
 - `DELETE /api/projects/:projectId/logs` - Clear all logs
 
 ### Mock Server
 
 - `ALL /mock/:projectId/*` - The mock server endpoint (handles all HTTP methods)
 
-## Architecture
+All API endpoints use Zod for validation and return consistent error responses:
 
-```
-api-mocking-sandbox/
-├── backend/                # Fastify backend
-│   ├── src/
-│   │   ├── engine/         # Core mocking engine
-│   │   │   ├── openapi-parser.ts    # OpenAPI spec parsing
-│   │   │   ├── schema-faker.ts      # Fake data generation
-│   │   │   └── mock-engine.ts       # Main mock logic
-│   │   ├── routes/         # API routes
-│   │   ├── types/          # TypeScript types
-│   │   ├── db.ts           # Prisma client
-│   │   └── index.ts        # Server entry point
-│   └── prisma/
-│       └── schema.prisma   # Database schema
-├── frontend/               # Next.js UI
-│   └── src/
-│       ├── app/            # Next.js pages
-│       └── lib/            # API client
-└── docker-compose.yml      # PostgreSQL container
+```json
+{
+  "error": "Validation Error",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "name",
+      "message": "Name is required"
+    }
+  ]
+}
 ```
 
-## Database Schema
+## Future Extensions
 
-### MockProject
-- `id`: Unique identifier
-- `name`: Project name
-- `description`: Optional description
-- `createdAt`, `updatedAt`: Timestamps
+### Phase 3 Enhancements
+- **GraphQL Support**: Parse GraphQL schemas and generate mock resolvers
+- **Authentication Simulation**: Mock JWT tokens and auth flows
+- **Rate Limiting Simulation**: Test rate limit handling
+- **Network Conditions**: Simulate latency, timeouts, intermittent failures
+- **Response Templates**: Template language for dynamic responses (Faker.js integration)
+- **Import/Export**: Share project configurations as JSON
+- **Webhooks**: Trigger webhooks on specific mock requests
+- **WebSocket Support**: Mock WebSocket connections
 
-### MockSpec
-- `id`: Unique identifier
-- `projectId`: Reference to project
-- `type`: `OPENAPI` or `JSON_SCHEMA`
-- `sourceText`: The spec content (YAML/JSON)
-- `createdAt`: Timestamp
+### Integration & Ecosystem
+- **Playwright/Cypress Integration**: Use as test fixture server
+- **OpenAPI Code Generation**: Generate TypeScript types from specs
+- **Postman Collection Export**: Export mock endpoints as Postman collections
+- **CLI Tool**: Command-line interface for CI/CD pipelines
+- **VS Code Extension**: Manage mocks directly from editor
 
-### MockEndpointOverride
-- `id`: Unique identifier
-- `projectId`: Reference to project
-- `method`: HTTP method (GET, POST, etc.)
-- `path`: Endpoint path
-- `customResponseJson`: Custom response data
-- `enabled`: Whether override is active
-- `statusCode`: HTTP status code
-- `createdAt`, `updatedAt`: Timestamps
-
-### RequestLog
-- `id`: Unique identifier
-- `projectId`: Reference to project
-- `method`: HTTP method
-- `path`: Request path
-- `statusCode`: Response status code
-- `timestamp`: When request was made
-- `bodyJson`: Request body (if any)
-- `headers`: Request headers
-- `responseJson`: Response sent back
-
-## Development
-
-### Running Backend Only
-
-```bash
-cd backend
-npm run dev
-```
-
-### Running Frontend Only
-
-```bash
-cd frontend
-npm run dev
-```
-
-### Database Commands
-
-```bash
-# Create a migration
-cd backend
-npx prisma migrate dev --name migration_name
-
-# Reset database
-npx prisma migrate reset
-
-# Open Prisma Studio (database GUI)
-npx prisma studio
-```
-
-## Production Build
-
-```bash
-# Build both frontend and backend
-npm run build
-
-# Start in production mode
-npm start
-```
-
-## Use Cases
-
-1. **Frontend Development**: Develop frontend features without waiting for backend APIs
-2. **Testing**: Test edge cases and error scenarios with custom overrides
-3. **Prototyping**: Quickly prototype new features with realistic data
-4. **API Documentation**: Use as interactive API documentation
-5. **Integration Testing**: Mock external APIs in your integration tests
-6. **Client Demos**: Demo frontend features with realistic-looking data
-
-## Configuration
-
-### Backend (.env)
-
-```env
-DATABASE_URL="postgresql://mockuser:mockpass@localhost:5432/apimocking?schema=public"
-PORT=3001
-HOST=0.0.0.0
-```
-
-### Frontend (.env.local)
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001
-```
-
-## Tips & Best Practices
-
-1. **Use Examples in Your OpenAPI Spec**: JSON Schema Faker uses examples when available
-2. **Path Parameters**: Use OpenAPI path parameter syntax: `/users/{id}`
-3. **Override Wisely**: Use overrides for testing error cases and edge scenarios
-4. **Clear Logs Regularly**: Logs can grow large; clear them periodically
-5. **Version Control**: Store your OpenAPI specs in git alongside your frontend code
-6. **Environment Variables**: Use different mock server URLs for dev/staging/prod
-
-## Troubleshooting
-
-**Problem**: Routes not showing up after uploading spec
-
-**Solution**: Make sure your OpenAPI spec is valid. Check the console for parsing errors.
-
----
-
-**Problem**: Mock server returns 404 for all requests
-
-**Solution**: Verify you're using the correct project ID in the URL and that you've uploaded a spec.
-
----
-
-**Problem**: Database connection errors
-
-**Solution**: Make sure PostgreSQL is running: `docker-compose ps`
-
----
-
-**Problem**: Can't connect from frontend app
-
-**Solution**: Check CORS settings if deploying. The backend allows all origins in development.
+### Advanced Features
+- **State Management**: Maintain state across requests (e.g., POST creates, GET retrieves)
+- **Scenario Recording**: Record real API responses and replay them
+- **Smart Defaults**: Learn from real API usage patterns
+- **Multi-tenancy**: User accounts and private projects
+- **Analytics Dashboard**: Visualize API usage patterns
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+Contributions are welcome! Areas that need attention:
+- Frontend tests
+- E2E test suite
+- GraphQL support
+- Performance optimization
+- Documentation improvements
 
 ## License
 
@@ -417,4 +472,6 @@ MIT
 
 ---
 
-Built with ❤️ for developers who want to move fast and mock things.
+**Built for developers who want to move fast and mock everything.**
+
+For questions or issues, please open a GitHub issue.

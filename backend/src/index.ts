@@ -6,6 +6,7 @@ import overrideRoutes from './routes/overrides';
 import logRoutes from './routes/logs';
 import routesRoutes from './routes/routes';
 import mockServerRoutes from './routes/mock-server';
+import { errorHandler } from './errors';
 
 const fastify = Fastify({
   logger: true,
@@ -16,6 +17,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 async function start() {
   try {
+    // Register error handler
+    fastify.setErrorHandler(errorHandler);
+
     // Register CORS
     await fastify.register(cors, {
       origin: true, // Allow all origins in development

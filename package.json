@@ -13,7 +13,16 @@
     "dev:frontend": "npm run dev -w frontend",
     "build": "npm run build -w backend && npm run build -w frontend",
     "start": "concurrently \"npm run start -w backend\" \"npm run start -w frontend\"",
-    "db:setup": "npm run db:setup -w backend"
+    "test": "npm run test -w backend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "db:setup": "npm run db:setup -w backend",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:push": "npm run db:push -w backend",
+    "db:seed": "npm run db:seed -w backend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:logs": "docker-compose logs -f"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

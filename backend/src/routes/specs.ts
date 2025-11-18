@@ -1,69 +1,78 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../db';
 import { OpenAPIParser } from '../engine/openapi-parser';
+import {
+  createSpecSchema,
+  specIdSchema,
+  projectIdSchema,
+  CreateSpecInput
+} from '../schemas';
+import { NotFoundError, BadRequestError } from '../errors';
 
 export default async function specRoutes(fastify: FastifyInstance) {
   // Create a new spec for a project
-  fastify.post('/projects/:projectId/specs', async (request, reply) => {
-    const { projectId } = request.params as { projectId: string };
-    const { type, sourceText } = request.body as { type: 'OPENAPI' | 'JSON_SCHEMA'; sourceText: string };
+  fastify.post<{ Params: { projectId: string }; Body: CreateSpecInput }>(
+    '/projects/:projectId/specs',
+    async (request, reply) => {
+      const { projectId } = projectIdSchema.parse(request.params);
+      const { type, sourceText } = createSpecSchema.parse(request.body);
 
-    if (!type || !sourceText) {
-      return reply.status(400).send({ error: 'type and sourceText are required' });
-    }
-
-    // Validate the spec
-    try {
-      if (type === 'OPENAPI') {
-        OpenAPIParser.parse(sourceText);
-      } else {
-        JSON.parse(sourceText);
+      // Validate the spec
+      try {
+        if (type === 'OPENAPI') {
+          OpenAPIParser.parse(sourceText);
+        } else {
+          JSON.parse(sourceText);
+        }
+      } catch (error) {
+        throw new BadRequestError('Invalid spec format');
       }
-    } catch (error) {
-      return reply.status(400).send({ error: 'Invalid spec format' });
+
+      const spec = await prisma.mockSpec.create({
+        data: {
+          projectId,
+          type,
+          sourceText,
+        },
+      });
+
+      return reply.status(201).send(spec);
     }
-
-    const spec = await prisma.mockSpec.create({
-      data: {
-        projectId,
-        type,
-        sourceText,
-      },
-    });
-
-    return reply.status(201).send(spec);
-  });
+  );
 
   // Get all specs for a project
-  fastify.get('/projects/:projectId/specs', async (request, reply) => {
-    const { projectId } = request.params as { projectId: string };
+  fastify.get<{ Params: { projectId: string } }>(
+    '/projects/:projectId/specs',
+    async (request, reply) => {
+      const { projectId } = projectIdSchema.parse(request.params);
 
-    const specs = await prisma.mockSpec.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
-    });
+      const specs = await prisma.mockSpec.findMany({
+        where: { projectId },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    return specs;
-  });
+      return specs;
+    }
+  );
 
   // Get a single spec
-  fastify.get('/specs/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
+  fastify.get<{ Params: { id: string } }>('/specs/:id', async (request, reply) => {
+    const { id } = specIdSchema.parse(request.params);
 
     const spec = await prisma.mockSpec.findUnique({
       where: { id },
     });
 
     if (!spec) {
-      return reply.status(404).send({ error: 'Spec not found' });
+      throw new NotFoundError('Spec');
     }
 
     return spec;
   });
 
   // Delete a spec
-  fastify.delete('/specs/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
+  fastify.delete<{ Params: { id: string } }>('/specs/:id', async (request, reply) => {
+    const { id } = specIdSchema.parse(request.params);
 
     await prisma.mockSpec.delete({
       where: { id },

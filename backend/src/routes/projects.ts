@@ -1,5 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../db';
+import {
+  createProjectSchema,
+  updateProjectSchema,
+  projectIdSchema,
+  CreateProjectInput,
+  UpdateProjectInput
+} from '../schemas';
+import { NotFoundError } from '../errors';
 
 export default async function projectRoutes(fastify: FastifyInstance) {
   // List all projects
@@ -20,8 +28,9 @@ export default async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Get a single project
-  fastify.get('/projects/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
+  fastify.get<{ Params: { id: string } }>('/projects/:id', async (request, reply) => {
+    const { id } = projectIdSchema.parse(request.params);
+
     const project = await prisma.mockProject.findUnique({
       where: { id },
       include: {
@@ -31,43 +40,42 @@ export default async function projectRoutes(fastify: FastifyInstance) {
     });
 
     if (!project) {
-      return reply.status(404).send({ error: 'Project not found' });
+      throw new NotFoundError('Project');
     }
 
     return project;
   });
 
   // Create a new project
-  fastify.post('/projects', async (request, reply) => {
-    const { name, description } = request.body as { name: string; description?: string };
-
-    if (!name) {
-      return reply.status(400).send({ error: 'Name is required' });
-    }
+  fastify.post<{ Body: CreateProjectInput }>('/projects', async (request, reply) => {
+    const data = createProjectSchema.parse(request.body);
 
     const project = await prisma.mockProject.create({
-      data: { name, description },
+      data,
     });
 
     return reply.status(201).send(project);
   });
 
   // Update a project
-  fastify.put('/projects/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const { name, description } = request.body as { name?: string; description?: string };
+  fastify.put<{ Params: { id: string }; Body: UpdateProjectInput }>(
+    '/projects/:id',
+    async (request, reply) => {
+      const { id } = projectIdSchema.parse(request.params);
+      const data = updateProjectSchema.parse(request.body);
 
-    const project = await prisma.mockProject.update({
-      where: { id },
-      data: { name, description },
-    });
+      const project = await prisma.mockProject.update({
+        where: { id },
+        data,
+      });
 
-    return project;
-  });
+      return project;
+    }
+  );
 
   // Delete a project
-  fastify.delete('/projects/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
+  fastify.delete<{ Params: { id: string } }>('/projects/:id', async (request, reply) => {
+    const { id } = projectIdSchema.parse(request.params);
 
     await prisma.mockProject.delete({
       where: { id },
