@@ -6,6 +6,10 @@ import overrideRoutes from './routes/overrides';
 import logRoutes from './routes/logs';
 import routesRoutes from './routes/routes';
 import mockServerRoutes from './routes/mock-server';
+import environmentRoutes from './routes/environments';
+import templateRoutes from './routes/templates';
+import webhookRoutes from './routes/webhooks';
+import collectionRoutes from './routes/collections';
 import { errorHandler } from './errors';
 
 const fastify = Fastify({
@@ -36,6 +40,10 @@ async function start() {
     await fastify.register(overrideRoutes, { prefix: '/api' });
     await fastify.register(logRoutes, { prefix: '/api' });
     await fastify.register(routesRoutes, { prefix: '/api' });
+    await fastify.register(environmentRoutes, { prefix: '/api' });
+    await fastify.register(templateRoutes, { prefix: '/api' });
+    await fastify.register(webhookRoutes, { prefix: '/api' });
+    await fastify.register(collectionRoutes, { prefix: '/api' });
 
     // Register mock server routes (no /api prefix)
     await fastify.register(mockServerRoutes);

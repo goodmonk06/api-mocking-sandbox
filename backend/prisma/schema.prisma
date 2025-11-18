@@ -14,14 +14,27 @@ model MockProject {
   id          String   @id @default(cuid())
   name        String
   description String?
+  tags        String[] @default([])
+  visibility  ProjectVisibility @default(PRIVATE)
+  archived    Boolean  @default(false)
+  settings    String?  @db.Text // JSON for project-level settings
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   specs              MockSpec[]
   endpointOverrides  MockEndpointOverride[]
   requestLogs        RequestLog[]
+  environments       Environment[]
+  collections        Collection[]
+  webhooks           Webhook[]
+  responseScenarios  ResponseScenario[]
 
   @@map("mock_projects")
+}
+
+enum ProjectVisibility {
+  PUBLIC
+  PRIVATE
 }
 
 model MockSpec {
@@ -29,7 +42,12 @@ model MockSpec {
   projectId  String
   type       SpecType
   sourceText String   @db.Text
+  version    String   @default("1.0.0")
+  isValid    Boolean  @default(true)
+  validationErrors String? @db.Text
+  lastUsedAt DateTime?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -45,33 +63,188 @@ enum SpecType {
 model MockEndpointOverride {
   id                 String   @id @default(cuid())
   projectId          String
+  environmentId      String?  // null means applies to all environments
   method             String   // GET, POST, PUT, DELETE, PATCH, etc.
   path               String   // e.g., /users/{id}
   customResponseJson String   @db.Text
+  customHeaders      String?  @db.Text // JSON for custom headers
+  delayMs            Int?     // Response delay in milliseconds
   enabled            Boolean  @default(true)
   statusCode         Int      @default(200)
+  conditionalLogic   String?  @db.Text // JSON for conditional response logic
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     MockProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment Environment? @relation(fields: [environmentId], references: [id], onDelete: Cascade)
 
   @@index([projectId, method, path])
+  @@index([environmentId])
   @@map("mock_endpoint_overrides")
 }
 
 model RequestLog {
-  id        String   @id @default(cuid())
-  projectId String
-  method    String
-  path      String
-  statusCode Int
-  timestamp DateTime @default(now())
-  bodyJson  String?  @db.Text
-  headers   String?  @db.Text
-  responseJson String? @db.Text
+  id           String   @id @default(cuid())
+  projectId    String
+  environmentId String?
+  method       String
+  path         String
+  statusCode   Int
+  durationMs   Int?     // Request duration in milliseconds
+  userAgent    String?
+  ipAddress    String?
+  responseSize Int?     // Response size in bytes
+  timestamp    DateTime @default(now())
+  bodyJson     String?  @db.Text
+  headers      String?  @db.Text
+  responseJson String?  @db.Text
+
+  project     MockProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment Environment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, timestamp])
+  @@index([environmentId])
+  @@map("request_logs")
+}
+// New entities for Phase 3 - append these to the main schema.prisma
+
+model Environment {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String   // dev, staging, production, etc.
+  description String?
+  isActive    Boolean  @default(false)
+  baseUrl     String?  // Environment-specific base URL
+  settings    String?  @db.Text // JSON for environment-specific settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project           MockProject            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  overrides         MockEndpointOverride[]
+  requestLogs       RequestLog[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("environments")
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String   // CRUD, Auth, Pagination, etc.
+  type        SpecType
+  sourceText  String   @db.Text // OpenAPI or JSON Schema with variables
+  variables   String   @db.Text // JSON describing template variables
+  isPublic    Boolean  @default(true)
+  usageCount  Int      @default(0)
+  tags        String[] @default([])
+  createdBy   String?  // User ID if auth is added
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublic])
+  @@map("templates")
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  pathPattern String?  // Regex pattern to auto-match endpoints
+  endpoints   String   @db.Text // JSON array of endpoint objects {method, path}
+  tags        String[] @default([])
+  settings    String?  @db.Text // JSON for collection-level settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@index([projectId, timestamp])
-  @@map("request_logs")
+  @@index([projectId])
+  @@map("collections")
+}
+
+model Webhook {
+  id             String        @id @default(cuid())
+  projectId      String
+  name           String
+  url            String
+  events         String[]      // Array of event types to trigger on
+  pathPattern    String?       // Trigger only for matching paths
+  statusCodes    Int[]         @default([]) // Empty means all status codes
+  enabled        Boolean       @default(true)
+  secret         String?       // For webhook signature verification
+  headers        String?       @db.Text // JSON for custom headers
+  retryAttempts  Int           @default(3)
+  lastTriggeredAt DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  project    MockProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([projectId])
+  @@index([enabled])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id            String           @id @default(cuid())
+  webhookId     String
+  eventType     String
+  payload       String           @db.Text // JSON payload sent
+  statusCode    Int?
+  responseBody  String?          @db.Text
+  error         String?
+  attemptNumber Int              @default(1)
+  deliveredAt   DateTime         @default(now())
+  status        DeliveryStatus
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([status])
+  @@map("webhook_deliveries")
+}
+
+enum DeliveryStatus {
+  SUCCESS
+  FAILED
+  PENDING
+  RETRYING
+}
+
+model ResponseScenario {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  method      String
+  path        String
+  scenarios   String   @db.Text // JSON array of scenario variants with probabilities
+  enabled     Boolean  @default(true)
+  selectionStrategy String @default("RANDOM") // RANDOM, WEIGHTED, SEQUENTIAL, CONDITIONAL
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project MockProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([enabled])
+  @@map("response_scenarios")
+}
+
+model Metric {
+  id        String   @id @default(cuid())
+  projectId String?
+  name      String   // e.g., "mock.request", "spec.generation"
+  value     Float
+  labels    String   @db.Text // JSON for metric labels/dimensions
+  timestamp DateTime @default(now())
+
+  @@index([projectId, name, timestamp])
+  @@index([timestamp])
+  @@map("metrics")
 }
